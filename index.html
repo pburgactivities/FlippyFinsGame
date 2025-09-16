@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flippy Fins</title>
+<style>
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: #87CEEB;
+        font-family: Arial, sans-serif;
+        text-align: center;
+    }
+    canvas {
+        display: block;
+        margin: 0 auto;
+        background: #00BFFF;
+        touch-action: none;
+    }
+    #overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-size: 24px;
+        background: rgba(0,0,0,0.5);
+        transition: opacity 0.5s;
+    }
+    #overlay button {
+        font-size: 20px;
+        padding: 10px 20px;
+        margin-top: 20px;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+<h1>Flippy Fins</h1>
+<canvas id="gameCanvas" width="400" height="600"></canvas>
+<div id="overlay">
+    <div id="startScreen">
+        <p>Tap or Press Any Key to Start</p>
+        <button onclick="startGame()">Start Game</button>
+        <p>High Score: <span id="highScoreDisplay">0</span></p>
+    </div>
+    <div id="gameOverScreen" style="display:none;">
+        <p id="gameOverText"></p>
+        <button onclick="restartGame()">Restart</button>
+        <p>High Score: <span id="highScoreDisplay2">0</span></p>
+    </div>
+</div>
+<script>
+// --- Images ---
+const fishImg = new Image();
+fishImg.src = 'https://i.imgur.com/o7OaL4r.png'; // Fish sprite sheet (3 frames)
+const fishFrames = 3;
+let fishFrameIndex = 0;
+let fishFrameCounter = 0;
+
+const coralImg = new Image();
+coralImg.src = 'https://i.imgur.com/0V9Kslc.png'; // Coral/seaweed
+
+const bgImg = new Image();
+bgImg.src = 'https://i.imgur.com/Z8lhxWv.jpg'; // Underwater background
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// --- Sounds ---
+const swimSound = new Audio('https://freesound.org/data/previews/341/341695_5260875-lq.mp3');
+const scoreSound = new Audio('https://freesound.org/data/previews/341/341713_5260875-lq.mp3');
+
+// --- Overlay ---
+const overlay = document.getElementById('overlay');
+const startScreen = document.getElementById('startScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const highScoreDisplay = document.getElementById('highScoreDisplay');
+const highScoreDisplay2 = document.getElementById('highScoreDisplay2');
+const gameOverText = document.getElementById('gameOverText');
+
+// --- Game state ---
+let fish = {};
+let obstacles = [];
+let bubbles = [];
+let frame = 0;
+let score = 0;
+let highScore = localStorage.getItem('flippyHighScore') || 0;
+let gameRunning = false;
+
+highScoreDisplay.textContent = highScore;
+highScoreDisplay2.textContent = highScore;
+
+// --- Initialize game ---
+function initGame() {
+    fish = {x:80, y:canvas.height/2, width:40, height:30, gravity:0.6, lift:-10, velocity:0};
+    obstacles = [];
+    bubbles = [];
+    frame = 0;
+    score = 0;
+}
+
+// --- Obstacles ---
+function createObstacle() {
+    const gap = 150;
+    const minHeight = 50;
+    const maxHeight = canvas.height - gap - minHeight;
+    const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1) + minHeight);
+    obstacles.push({x:canvas.width, top:topHeight, bottom:canvas.height - topHeight - gap, width:50});
+}
+
+// --- Bubbles ---
+function createBubble() {
+    bubbles.push({x:fish.x+fish.width/2, y:fish.y+fish.height/2, radius:Math.random()*5+2, speed:Math.random()*1+0.5});
+}
+
+// --- Drawing ---
+function drawBackground() { ctx.drawImage(bgImg, 0,0,canvas.width,canvas.height); }
+function drawFish() {
+    const frameWidth = fishImg.width / fishFrames;
+    ctx.drawImage(fishImg, frameWidth*fishFrameIndex,0,frameWidth,fishImg.height,fish.x,fish.y,fish.width,fish.height);
+    fishFrameCounter++;
+    if(fishFrameCounter % 5 === 0){ fishFrameIndex = (fishFrameIndex +1) % fishFrames; }
+}
+function drawObstacles() { obstacles.forEach(obs => { ctx.drawImage(coralImg, obs.x,0,obs.width,obs.top); ctx.drawImage(coralImg, obs.x,canvas.height-obs.bottom,obs.width,obs.bottom); }); }
+function updateObstacles() { obstacles.forEach(obs => obs.x -= 2); if(obstacles.length && obstacles[0].x + obstacles[0].width < 0){ obstacles.shift(); score++; scoreSound.play(); } }
+function drawBubbles() { ctx.fillStyle='rgba(255,255,255,0.7)'; bubbles.forEach(b => { ctx.beginPath(); ctx.arc(b.x,b.y,b.radius,0,Math.PI*2); ctx.fill(); b.y -= b.speed; }); bubbles=bubbles.filter(b => b.y + b.radius>0); }
+function drawScore() { ctx.fillStyle='white'; ctx.font='24px Arial'; ctx.fillText('Score: '+score,10,30); }
+function checkCollision() { for(let obs of obstacles){ if(fish.x+fish.width>obs.x && fish.x<obs.x+obs.width && (fish.y<obs.top || fish.y+fish.height>canvas.height-obs.bottom)){ return true; } } if(fish.y+fish.height>canvas.height || fish.y<0) return true; return false; }
+
+// --- Game loop ---
+function gameLoop() {
+    if(!gameRunning) return;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawBackground();
+    if(frame%90===0) createObstacle();
+    if(frame%5===0) createBubble();
+    drawObstacles();
+    drawFish();
+    drawBubbles();
+    drawScore();
+    updateObstacles();
+    fish.velocity += fish.gravity;
+    fish.y += fish.velocity;
+    if(checkCollision()) endGame();
+    frame++;
+    requestAnimationFrame(gameLoop);
+}
+
+// --- Controls ---
+function tapSwim(){ if(gameRunning){ fish.velocity = fish.lift; swimSound.play(); } }
+canvas.addEventListener('touchstart', tapSwim);
+document.addEventListener('keydown', tapSwim);
+
+// --- Start/Restart ---
+function startGame(){ overlay.style.opacity=0; setTimeout(()=>overlay.style.display='none',500); initGame(); gameRunning=true; gameLoop(); }
+function restartGame(){ overlay.style.opacity=0; setTimeout(()=>overlay.style.display='none',500); initGame(); gameRunning=true; gameLoop(); }
+
+// --- End game ---
+function endGame(){
+    gameRunning=false;
+    overlay.style.display='flex';
+    overlay.style.opacity=1;
+    startScreen.style.display='none';
+    gameOverScreen.style.display='block';
+    gameOverText.textContent='Game Over! Score: '+score;
+    if(score>highScore){ highScore=score; localStorage.setItem('flippyHighScore',highScore); }
+    highScoreDisplay2.textContent=highScore;
+}
+</script>
+</body>
+</html>
