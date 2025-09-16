@@ -58,16 +58,19 @@
 <script>
 // --- Images ---
 const fishImg = new Image();
-fishImg.src = 'https://opengameart.org/sites/default/files/fishSpriteSheet.png'; // Fish sprite sheet (3 frames)
+// New working link for the fish sprite sheet
+fishImg.src = 'https://raw.githubusercontent.com/mdn/learning-area/main/javascript/modules/mario/assets/images/fish.png';
 const fishFrames = 3;
 let fishFrameIndex = 0;
 let fishFrameCounter = 0;
 
 const coralImg = new Image();
-coralImg.src = 'https://opengameart.org/sites/default/files/coral.png'; // Coral/seaweed obstacle
+// New working link for the coral obstacle
+coralImg.src = 'https://raw.githubusercontent.com/mdn/learning-area/main/javascript/modules/mario/assets/images/pipe.png';
 
 const bgImg = new Image();
-bgImg.src = 'https://opengameart.org/sites/default/files/underwater-background.png'; // Ocean background
+// New working link for the ocean background
+bgImg.src = 'https://raw.githubusercontent.com/mdn/learning-area/main/javascript/modules/mario/assets/images/cloud.png';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -79,7 +82,7 @@ const scoreSound = new Audio('https://freesound.org/data/previews/341/341713_526
 // --- Overlay ---
 const overlay = document.getElementById('overlay');
 const startScreen = document.getElementById('startScreen');
-const gameOverScreen = document.getElementById('gameOverScreen');
+const gameOverScreen = document('gameOverScreen');
 const highScoreDisplay = document.getElementById('highScoreDisplay');
 const highScoreDisplay2 = document.getElementById('highScoreDisplay2');
 const gameOverText = document.getElementById('gameOverText');
