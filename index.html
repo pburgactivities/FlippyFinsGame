@@ -38,6 +38,11 @@
         margin-top: 20px;
         cursor: pointer;
     }
+    #countdown {
+        font-size: 48px;
+        font-weight: bold;
+        text-shadow: 2px 2px 4px #000000;
+    }
 </style>
 </head>
 <body>
@@ -54,22 +59,20 @@
         <button onclick="restartGame()">Restart</button>
         <p>High Score: <span id="highScoreDisplay2">0</span></p>
     </div>
+    <div id="countdown" style="display:none;"></div>
 </div>
 <script>
 // --- Images ---
 const fishImg = new Image();
-// New working link for the fish sprite sheet
 fishImg.src = 'https://raw.githubusercontent.com/mdn/learning-area/main/javascript/modules/mario/assets/images/fish.png';
 const fishFrames = 3;
 let fishFrameIndex = 0;
 let fishFrameCounter = 0;
 
 const coralImg = new Image();
-// New working link for the coral obstacle
 coralImg.src = 'https://raw.githubusercontent.com/mdn/learning-area/main/javascript/modules/mario/assets/images/pipe.png';
 
 const bgImg = new Image();
-// New working link for the ocean background
 bgImg.src = 'https://raw.githubusercontent.com/mdn/learning-area/main/javascript/modules/mario/assets/images/cloud.png';
 
 const canvas = document.getElementById('gameCanvas');
@@ -78,14 +81,16 @@ const ctx = canvas.getContext('2d');
 // --- Sounds ---
 const swimSound = new Audio('https://freesound.org/data/previews/341/341695_5260875-lq.mp3');
 const scoreSound = new Audio('https://freesound.org/data/previews/341/341713_5260875-lq.mp3');
+const hitSound = new Audio('https://freesound.org/data/previews/407/407759_5260875-lq.mp3');
 
 // --- Overlay ---
 const overlay = document.getElementById('overlay');
 const startScreen = document.getElementById('startScreen');
-const gameOverScreen = document('gameOverScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
 const highScoreDisplay = document.getElementById('highScoreDisplay');
 const highScoreDisplay2 = document.getElementById('highScoreDisplay2');
 const gameOverText = document.getElementById('gameOverText');
+const countdownElement = document.getElementById('countdown');
 
 // --- Game state ---
 let fish = {};
@@ -95,9 +100,21 @@ let frame = 0;
 let score = 0;
 let highScore = localStorage.getItem('flippyHighScore') || 0;
 let gameRunning = false;
+let obstacleSpeed = 2;
+let screenShakeFrames = 0;
 
 highScoreDisplay.textContent = highScore;
 highScoreDisplay2.textContent = highScore;
+
+// --- Preload Images before starting the game ---
+async function preloadImages() {
+    const imagesToLoad = [fishImg, coralImg, bgImg];
+    const promises = imagesToLoad.map(img => new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+    }));
+    await Promise.all(promises);
+}
 
 // --- Initialize game ---
 function initGame() {
@@ -106,6 +123,7 @@ function initGame() {
     bubbles = [];
     frame = 0;
     score = 0;
+    screenShakeFrames = 0;
 }
 
 // --- Obstacles ---
@@ -131,14 +149,25 @@ function drawFish() {
     if(fishFrameCounter % 5 === 0){ fishFrameIndex = (fishFrameIndex +1) % fishFrames; }
 }
 function drawObstacles() { obstacles.forEach(obs => { ctx.drawImage(coralImg, obs.x,0,obs.width,obs.top); ctx.drawImage(coralImg, obs.x,canvas.height-obs.bottom,obs.width,obs.bottom); }); }
-function updateObstacles() { obstacles.forEach(obs => obs.x -= 2); if(obstacles.length && obstacles[0].x + obstacles[0].width < 0){ obstacles.shift(); score++; scoreSound.play(); } }
+function updateObstacles() { obstacles.forEach(obs => obs.x -= obstacleSpeed); if(obstacles.length && obstacles[0].x + obstacles[0].width < 0){ obstacles.shift(); score++; scoreSound.play(); } }
 function drawBubbles() { ctx.fillStyle='rgba(255,255,255,0.7)'; bubbles.forEach(b => { ctx.beginPath(); ctx.arc(b.x,b.y,b.radius,0,Math.PI*2); ctx.fill(); b.y -= b.speed; }); bubbles=bubbles.filter(b => b.y + b.radius>0); }
 function drawScore() { ctx.fillStyle='white'; ctx.font='24px Arial'; ctx.fillText('Score: '+score,10,30); }
 function checkCollision() { for(let obs of obstacles){ if(fish.x+fish.width>obs.x && fish.x<obs.x+obs.width && (fish.y<obs.top || fish.y+fish.height>canvas.height-obs.bottom)){ return true; } } if(fish.y+fish.height>canvas.height || fish.y<0) return true; return false; }
 
 // --- Game loop ---
 function gameLoop() {
-    if(!gameRunning) return;
+    if(!gameRunning) {
+        if (screenShakeFrames > 0) {
+            const shakeX = Math.random() * 5 - 2.5;
+            const shakeY = Math.random() * 5 - 2.5;
+            canvas.style.transform = `translate(${shakeX}px, ${shakeY}px)`;
+            screenShakeFrames--;
+        } else {
+            canvas.style.transform = '';
+        }
+        requestAnimationFrame(gameLoop);
+        return;
+    }
     ctx.clearRect(0,0,canvas.width,canvas.height);
     drawBackground();
     if(frame%90===0) createObstacle();
@@ -161,12 +190,45 @@ canvas.addEventListener('touchstart', tapSwim);
 document.addEventListener('keydown', tapSwim);
 
 // --- Start/Restart ---
-function startGame(){ overlay.style.opacity=0; setTimeout(()=>overlay.style.display='none',500); initGame(); gameRunning=true; gameLoop(); }
-function restartGame(){ overlay.style.opacity=0; setTimeout(()=>overlay.style.display='none',500); initGame(); gameRunning=true; gameLoop(); }
+function startGame(){
+    preloadImages().then(() => {
+        let countdown = 3;
+        overlay.style.opacity = 1;
+        startScreen.style.display = 'none';
+        countdownElement.style.display = 'block';
+
+        const countdownInterval = setInterval(() => {
+            if (countdown > 0) {
+                countdownElement.textContent = countdown;
+                countdown--;
+            } else {
+                clearInterval(countdownInterval);
+                countdownElement.textContent = 'Go!';
+                setTimeout(() => {
+                    overlay.style.opacity = 0;
+                    setTimeout(() => overlay.style.display = 'none', 500);
+                    initGame();
+                    gameRunning = true;
+                    gameLoop();
+                }, 500);
+            }
+        }, 1000);
+    }).catch(error => {
+        console.error("Failed to load images:", error);
+        alert("Failed to load game assets. Please check the image links.");
+    });
+}
+
+function restartGame(){
+    gameOverScreen.style.display = 'none';
+    startGame();
+}
 
 // --- End game ---
 function endGame(){
     gameRunning=false;
+    hitSound.play();
+    screenShakeFrames = 30;
     overlay.style.display='flex';
     overlay.style.opacity=1;
     startScreen.style.display='none';
@@ -175,6 +237,9 @@ function endGame(){
     if(score>highScore){ highScore=score; localStorage.setItem('flippyHighScore',highScore); }
     highScoreDisplay2.textContent=highScore;
 }
+
+// Ensure the game loop is running to handle the screen shake effect even when the game is not active
+requestAnimationFrame(gameLoop);
 </script>
 </body>
 </html>
